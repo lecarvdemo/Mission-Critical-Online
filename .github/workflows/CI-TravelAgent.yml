@@ -1,0 +1,57 @@
+name: Travel Agent – Generate Output
+
+# Runs automatically whenever the travel agent code or its output changes,
+# and can also be triggered manually from the Actions tab.
+#
+# The job runs the three-agent pipeline (Travel → Flight → Review) in demo
+# mode (no API key required) and commits the refreshed Markdown report back
+# to the branch so it is always visible in the repository.
+
+on:
+  push:
+    paths:
+      - "src/app/TravelAgent/**"
+  workflow_dispatch:
+
+defaults:
+  run:
+    working-directory: src/app/TravelAgent
+
+jobs:
+  generate-travel-plan:
+    name: Generate travel plan output
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: write   # needed to commit the output file back to the branch
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # Use a token with write access so the subsequent push works.
+          # Falls back to the default GITHUB_TOKEN when no PAT is configured.
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run travel agent pipeline (demo mode)
+        run: python main.py --demo --output results/trip_december_2027.md
+
+      - name: Commit refreshed output
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add results/trip_december_2027.md
+          # Only commit if the file actually changed
+          if git diff --staged --quiet; then
+            echo "Output unchanged – nothing to commit."
+          else
+            git commit -m "chore: refresh travel plan output [skip ci]"
+            git push
+          fi

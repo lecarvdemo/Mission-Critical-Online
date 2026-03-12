@@ -10,3 +10,8 @@ locals.txt
 .vscode
 .tfstate
 .vs
+
+# TravelAgent
+src/app/TravelAgent/.env
+src/app/TravelAgent/.venv/
+src/app/TravelAgent/__pycache__/
