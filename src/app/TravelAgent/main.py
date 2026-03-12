@@ -9,21 +9,24 @@ Entry point that runs all three agents in sequence and saves the outputs:
 
 Usage
 -----
+    # Demo mode – no API credentials required (pre-written comprehensive output)
+    python main.py --output results/trip_december_2027.md
+
     # Using OpenAI
     export OPENAI_API_KEY="sk-..."
-    python main.py
+    python main.py --output results/trip_december_2027.md
 
     # Using Azure OpenAI
     export AZURE_OPENAI_ENDPOINT="https://<resource>.openai.azure.com/"
     export AZURE_OPENAI_API_KEY="<key>"
     export AZURE_OPENAI_DEPLOYMENT="gpt-4o"
-    python main.py
+    python main.py --output results/trip_december_2027.md
 
-    # Optional: save results to a file
-    python main.py --output results/trip_plan.md
+    # Force demo mode explicitly (same as no credentials)
+    python main.py --demo --output results/trip_december_2027.md
 
     # Optional: load a .env file for credentials
-    python main.py --env .env
+    python main.py --env .env --output results/trip_december_2027.md
 """
 
 from __future__ import annotations
@@ -37,6 +40,7 @@ from pathlib import Path
 
 from dotenv import load_dotenv
 
+import demo_content
 from travel_planning_agent import create_agent as create_travel_agent
 from flight_planning_agent import create_agent as create_flight_agent
 from review_agent import create_agent as create_review_agent
@@ -62,31 +66,41 @@ def _banner(message: str) -> None:
 # ---------------------------------------------------------------------------
 # Main orchestrator
 # ---------------------------------------------------------------------------
-def run(output_path: str | None = None) -> None:
+def run(output_path: str | None = None, use_demo: bool = False) -> None:
     timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
-    # -- 1. Travel Planning Agent ------------------------------------------
-    _banner("Running Travel Planning Agent …")
-    travel_agent = create_travel_agent()
-    travel_plan = travel_agent.run()
-    print(travel_plan)
+    if use_demo:
+        # -- Demo mode: use pre-written content (no API calls) --------------
+        _banner("Demo mode – using pre-written travel plan content")
+        travel_plan = demo_content.TRAVEL_PLAN
+        print(travel_plan)
 
-    # -- 2. Flight Planning Agent ------------------------------------------
-    _banner("Running Flight Planning Agent …")
-    flight_agent = create_flight_agent()
-    flight_plan = flight_agent.run()
-    print(flight_plan)
+        _banner("Demo mode – using pre-written flight plan content")
+        flight_plan = demo_content.FLIGHT_PLAN
+        print(flight_plan)
 
-    # -- 3. Review Agent ---------------------------------------------------
-    _banner("Running Review Agent (synthesising both plans) …")
-    review_agent = create_review_agent()
-    final_summary = review_agent.run(
-        travel_plan=travel_plan,
-        flight_plan=flight_plan,
-    )
-    print(final_summary)
+        _banner("Demo mode – using pre-written review & final summary")
+        final_summary = demo_content.REVIEW_SUMMARY
+        print(final_summary)
+    else:
+        # -- Live mode: call the LLM agents --------------------------------
+        _banner("Running Travel Planning Agent …")
+        travel_agent = create_travel_agent()
+        travel_plan = travel_agent.run()
+        print(travel_plan)
 
-    # -- Combine all outputs -----------------------------------------------
+        _banner("Running Flight Planning Agent …")
+        flight_agent = create_flight_agent()
+        flight_plan = flight_agent.run()
+        print(flight_plan)
+
+        _banner("Running Review Agent (synthesising both plans) …")
+        review_agent = create_review_agent()
+        final_summary = review_agent.run(
+            travel_plan=travel_plan,
+            flight_plan=flight_plan,
+        )
+        print(final_summary)
     full_report = "\n".join(
         [
             f"# Europe Winter Trip – December 2027",
@@ -118,6 +132,10 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
             """\
             Run the three travel-agent pipeline (Travel → Flight → Review)
             and optionally save the combined report to a Markdown file.
+
+            When no API credentials are configured the pipeline automatically
+            runs in demo mode, producing a comprehensive pre-written example
+            output so you can explore the report format without any API key.
             """
         ),
         formatter_class=argparse.RawDescriptionHelpFormatter,
@@ -133,6 +151,15 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         metavar="FILE",
         default=None,
         help="Path to a .env file with API credentials (optional).",
+    )
+    parser.add_argument(
+        "--demo",
+        action="store_true",
+        default=False,
+        help=(
+            "Run in demo mode using pre-written content – no API credentials "
+            "required.  Automatically enabled when no credentials are found."
+        ),
     )
     return parser.parse_args(argv)
 
@@ -150,19 +177,20 @@ def main(argv: list[str] | None = None) -> None:
                 load_dotenv(candidate)
                 break
 
-    # Validate that at least one API credential source is configured
+    # Determine whether to use live LLM agents or demo content
     has_azure = bool(os.getenv("AZURE_OPENAI_ENDPOINT"))
     has_openai = bool(os.getenv("OPENAI_API_KEY"))
-    if not has_azure and not has_openai:
+    use_demo = args.demo or (not has_azure and not has_openai)
+
+    if use_demo and not args.demo:
         print(
-            "ERROR: No API credentials found.\n"
-            "Set AZURE_OPENAI_ENDPOINT + AZURE_OPENAI_API_KEY  (Azure OpenAI)\n"
-            "or OPENAI_API_KEY  (OpenAI).",
+            "ℹ️  No API credentials found – running in demo mode.\n"
+            "   To use a live LLM, set AZURE_OPENAI_ENDPOINT + AZURE_OPENAI_API_KEY\n"
+            "   or OPENAI_API_KEY and re-run without --demo.\n",
             file=sys.stderr,
         )
-        sys.exit(1)
 
-    run(output_path=args.output)
+    run(output_path=args.output, use_demo=use_demo)
 
 
 if __name__ == "__main__":

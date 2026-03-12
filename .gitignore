@@ -14,4 +14,4 @@ locals.txt
 # TravelAgent
 src/app/TravelAgent/.env
 src/app/TravelAgent/.venv/
-src/app/TravelAgent/results/
+src/app/TravelAgent/__pycache__/
