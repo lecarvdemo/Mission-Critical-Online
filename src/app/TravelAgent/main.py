@@ -101,6 +101,8 @@ def run(output_path: str | None = None, use_demo: bool = False) -> None:
             flight_plan=flight_plan,
         )
         print(final_summary)
+
+    # -- Combine all outputs -----------------------------------------------
     full_report = "\n".join(
         [
             f"# Europe Winter Trip – December 2027",
